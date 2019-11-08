@@ -21,17 +21,17 @@ void initScene(Sphere* cpu_spheres, Light* cpu_lights) {
             // differnent material
             if ((j+i)%2==1){
                 cpu_spheres[sphere_index].emission = Vector3Df(0.0f, 0.0f, 0.0f);
-                cpu_spheres[sphere_index].ambient = Vector3Df(0.03125, 0.13125, 0.13125);
-                cpu_spheres[sphere_index].diffuse = Vector3Df(0.2775, 0.2775, 0.2775);
-                cpu_spheres[sphere_index].specular = Vector3Df(0.773911, 0.773911, 0.773911);
-                cpu_spheres[sphere_index].shininess = 90.0f;
+                cpu_spheres[sphere_index].ambient = Vector3Df(0.10125, 0.03125, 0.03125);
+                cpu_spheres[sphere_index].diffuse = Vector3Df(0.1775, 0.1075, 0.1075);
+                cpu_spheres[sphere_index].specular = Vector3Df(0.373911, 0.173911, 0.173911);
+                cpu_spheres[sphere_index].shininess = 120.0f;
             }
             else{
                 cpu_spheres[sphere_index].emission = Vector3Df(0.0f, 0.0f, 0.0f);
-                cpu_spheres[sphere_index].ambient = Vector3Df(0.0f, 0.05f, 0.0f);
-                cpu_spheres[sphere_index].diffuse = Vector3Df(64.0f/256.0f, 163.0f/256.0f, 90.0f/256.0f);
+                cpu_spheres[sphere_index].ambient = Vector3Df(0.05f, 0.1f, 0.05f);
+                cpu_spheres[sphere_index].diffuse = Vector3Df(14.0f/256.0f, 113.0f/256.0f, 40.0f/256.0f);
                 cpu_spheres[sphere_index].specular = Vector3Df(0.2f, 0.2f, 0.2f);
-                cpu_spheres[sphere_index].shininess = 20.0f;
+                cpu_spheres[sphere_index].shininess = 100.0f;
             }
         }
     }
@@ -57,5 +57,5 @@ void initScene(Sphere* cpu_spheres, Light* cpu_lights) {
 
 	// top directional light
 	cpu_lights[0].position = Vector3Df(0.0f, 1.0f, -1.0f);
-	cpu_lights[0].color = Vector3Df(0.4f, 0.4f, 0.2f);
+	cpu_lights[0].color = Vector3Df(0.7f, 0.7f, 0.3f);
 }

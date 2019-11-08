@@ -8,7 +8,7 @@ __constant float PI = 3.14159265359f;
 __constant bool ANTI_ALIAS = true;
 __constant int RECURSE_DEPTH = 4;
 __constant float SPECULAR_THRESHOLD = 0.1; /* stop recursive when specular too low */
-__constant float3 background_color = (float3)(30/256.0f, 65.0f/256.0f, 60.0f/256.0f);
+__constant float3 background_color = (float3)(0,0,0);/*(float3)(30/256.0f, 65.0f/256.0f, 60.0f/256.0f);*/
 
 typedef struct Ray{
 	float3 origin;
