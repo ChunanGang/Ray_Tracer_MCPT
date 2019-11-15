@@ -216,12 +216,20 @@ union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
-	__global float3* accumbuffer, __constant Light* lights, const int light_count, __global float3* output2)
+	__global float3* accumbuffer, __constant Light* lights, const int light_count, __global float3* output2,
+	const int pixel_skip)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
-
+	
+	/* skip some pixels */
+	if (x_coord % pixel_skip != 0 || y_coord % pixel_skip != 0){
+		output[work_item_id] = (float3)(x_coord, y_coord, 0);
+		output2[work_item_id] = (float3)(0,0,0);
+		return;
+	}
+	
 	float3 finalcolor = (float3)(0.0f, 0.0f, 0.0f);
 
 	/* anti-alising */

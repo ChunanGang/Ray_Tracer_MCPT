@@ -3,7 +3,7 @@
 #include "geometry.h"
 
 const int light_num = 1;
-const int sphere_matrix_side = 3;
+const int sphere_matrix_side = 4;
 const float sphere_matrix_interrum = 0.7;
 
 const int sphere_num  = sphere_matrix_side*sphere_matrix_side + 1;
@@ -28,9 +28,9 @@ void initScene(Sphere* cpu_spheres, Light* cpu_lights) {
             }
             else{
                 cpu_spheres[sphere_index].emission = Vector3Df(0.0f, 0.0f, 0.0f);
-                cpu_spheres[sphere_index].ambient = Vector3Df(0.05f, 0.1f, 0.05f);
-                cpu_spheres[sphere_index].diffuse = Vector3Df(14.0f/256.0f, 113.0f/256.0f, 40.0f/256.0f);
-                cpu_spheres[sphere_index].specular = Vector3Df(0.2f, 0.2f, 0.2f);
+                cpu_spheres[sphere_index].ambient = Vector3Df(0.01f, 0.05f, 0.01f);
+                cpu_spheres[sphere_index].diffuse = Vector3Df(0.02f, 0.1f, 0.02f);
+                cpu_spheres[sphere_index].specular = Vector3Df(0.15f, 0.3f, 0.15f);
                 cpu_spheres[sphere_index].shininess = 100.0f;
             }
         }
@@ -52,8 +52,8 @@ void initScene(Sphere* cpu_spheres, Light* cpu_lights) {
 	cpu_spheres[sphere_num-1].emission = Vector3Df(0.0f, 0.0f, 0.0f);
 	cpu_spheres[sphere_num-1].ambient = Vector3Df(0.25f, 0.20725f, 0.20725f);
 	cpu_spheres[sphere_num-1].diffuse = Vector3Df(1.0f, 0.829, 0.829);
-	cpu_spheres[sphere_num-1].specular = Vector3Df(0.1, 0.1, 0.1);
-	cpu_spheres[sphere_num-1].shininess = 11.264;
+	cpu_spheres[sphere_num-1].specular = Vector3Df(0.1, 0.2, 0.2);
+	cpu_spheres[sphere_num-1].shininess = 20.264;
 
 	// top directional light
 	cpu_lights[0].position = Vector3Df(0.0f, 1.0f, -1.0f);

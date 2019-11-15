@@ -7,8 +7,8 @@
 
 //#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"   // OpenCL-OpenGL interoperability extension
 
-const int window_width =  1920;
-const int window_height =  1080;
+const int window_width =  1920/2;
+const int window_height =  1080/2;
 
 // OpenGL vertex buffer object
 GLuint vbo;
@@ -22,11 +22,11 @@ void initGL(int argc, char** argv){
 	// specify the display mode to be RGB and single buffering
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	// specify the initial window position
-	glutInitWindowPosition(50, 50);
+	glutInitWindowPosition(0, 0);
 	// specify the initial window size
-	glutInitWindowSize(window_width/2,window_height/2);
+	glutInitWindowSize(window_width,window_height);
 	// create the window and set title
-	glutCreateWindow("Basic OpenCL path tracer");
+	glutCreateWindow("OpenCL Ray Tracer");
 
 	// register GLUT callback function to display graphics:
 	glutDisplayFunc(render);

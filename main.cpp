@@ -3,13 +3,10 @@
 // Adpadted from the:
 //	OpenCL ray tracing tutorial by Sam Lapere, 2016
 //	http://raytracey.blogspot.com
-
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include "cl_gl_interop.h"
-#include <CL\cl.hpp>
-#include <windows.h>
+#include "setup.cpp"
 #include "linear_algebra.h"
 #include "camera.h"
 #include "geometry.h"
@@ -18,177 +15,59 @@
 #include <FreeImage.h>
 #include <math.h>
 #include <string>
+
 using namespace std;
 using namespace cl;
+
+const int fps = 40;
+const int fps_check_rate = 30; // print fps every 30 frames
+
+const int pixel_skip = 0; // skip some pixel when render
 
 // get from Scene.cpp
 const int sphere_count = sphere_num;
 const int light_count = light_num;
-const int fps = 30;
-const string img_dir = "./ScreenShot/";
 
-// OpenCL objects
-Device device;
-CommandQueue queue;
-Kernel kernel;
-Context context;
-Program program;
+// !!! resolution of window is defined in cl_gl_interop.h
+
+// scene object variable
 Buffer cl_spheres;
 Buffer cl_lights;
 Buffer cl_camera;
 Buffer cl_accumbuffer;
 BufferGL cl_vbo;
-vector<Memory> cl_vbos;
-bool save_img;
-BYTE * pixels; // used for save the image
-FIBITMAP *img;
-int img_num=0;
-
-cl_float4 * cpu_output;
-Buffer cl_output;
-
-cl_int err;
-
 Camera* hostRendercam = NULL;
 Sphere cpu_spheres[sphere_count];
 Light cpu_lights[light_count];
 
+vector<Memory> cl_vbos;
+cl_float4 * cpu_output;
+Buffer cl_output;
+cl_int err;
+
+// image-saving variable
+bool save_img;
+BYTE * pixels; // used for save the image
+FIBITMAP *img;
+int img_num=0;
+const string img_dir = "./ScreenShot/";
+
+// timer
+std::clock_t start;
+std::clock_t start_kernel;
+int num_render = 0;
+double sum_duration = 0; 
+double sum_duration_kernel = 0; 
+
 /* -------------------------------------------------------------------------- */
 //	The following functions are used to setup the OpenCL environment
 /* -------------------------------------------------------------------------- */
+void pickPlatform(Platform& platform, const vector<Platform>& platforms);
+void pickDevice(Device& device, const vector<Device>& devices);
+void printErrorLog(const Program& program, const Device& device);
+void initOpenCL();
 
-// function that allows user to pick OpenCL running platform
-void pickPlatform(Platform& platform, const vector<Platform>& platforms) {
-
-	if (platforms.size() == 1) platform = platforms[0];
-	else {
-		int input = 0;
-		cout << "\nChoose platform: ";
-		cin >> input;
-
-		// handle incorrect user input
-		while (input < 1 || input > platforms.size()) {
-			cin.clear(); //clear errors/bad flags on cin
-			cin.ignore(cin.rdbuf()->in_avail(), '\n'); // ignores exact number of chars in cin buffer
-			cout << "ERR. Choose an OpenCL platform: ";
-			cin >> input;
-		}
-		platform = platforms[input - 1];
-	}
-}
-
-// function that allows user to pick OpenCL running device
-void pickDevice(Device& device, const vector<Device>& devices) {
-
-	if (devices.size() == 1) device = devices[0];
-	else {
-		int input = 0;
-		cout << "\nChoose a device: ";
-		cin >> input;
-
-		// handle incorrect user input
-		while (input < 1 || input > devices.size()) {
-			cin.clear(); //clear errors/bad flags on cin
-			cin.ignore(cin.rdbuf()->in_avail(), '\n'); // ignores exact number of chars in cin buffer
-			cout << "ERR. Choose an OpenCL device: ";
-			cin >> input;
-		}
-		device = devices[input - 1];
-	}
-}
-
-void printErrorLog(const Program& program, const Device& device) {
-
-	// Get the error log and print to console
-	string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-	cerr << "Build log:" << std::endl << buildlog << std::endl;
-
-	// Print the error log to a file
-	FILE *log = fopen("errorlog.txt", "w");
-	fprintf(log, "%s\n", buildlog);
-	cout << "Error log saved in 'errorlog.txt'" << endl;
-	system("PAUSE");
-	exit(1);
-}
-
-void initOpenCL()
-{
-	// Get all available OpenCL platforms (e.g. AMD OpenCL, Nvidia CUDA, Intel OpenCL)
-	vector<Platform> platforms;
-	Platform::get(&platforms);
-	cout << "Available OpenCL platforms : " << endl << endl;
-	for (int i = 0; i < platforms.size(); i++)
-		cout << "\t" << i + 1 << ": " << platforms[i].getInfo<CL_PLATFORM_NAME>() << endl;
-
-	// Pick one platform
-	Platform platform;
-	pickPlatform(platform, platforms);
-	cout << "\nUsing OpenCL platform: \t" << platform.getInfo<CL_PLATFORM_NAME>() << endl;
-
-	// Get available OpenCL devices on platform
-	vector<Device> devices;
-	platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-
-	cout << "Available OpenCL devices on this platform: " << endl << endl;
-	for (int i = 0; i < devices.size(); i++) {
-		cout << "\t" << i + 1 << ": " << devices[i].getInfo<CL_DEVICE_NAME>() << endl;
-		cout << "\t\tMax compute units: " << devices[i].getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << endl;
-		cout << "\t\tMax work group size: " << devices[i].getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << endl << endl;
-	}
-
-	// Pick one device
-	//Device device;
-	pickDevice(device, devices);
-	cout << "\nUsing OpenCL device: \t" << device.getInfo<CL_DEVICE_NAME>() << endl;
-	cout << "\t\t\tMax compute units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << endl;
-	cout << "\t\t\tMax work group size: " << device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << endl;
-
-	// Create an OpenCL context on that device.
-	// Windows specific OpenCL-OpenGL interop
-	cl_context_properties properties[] =
-	{
-		CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
-		CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
-		CL_CONTEXT_PLATFORM, (cl_context_properties)platform(),
-		0
-	};
-
-	context = Context(device, properties);
-
-	// Create a command queue
-	queue = CommandQueue(context, device);
-
-
-	// Convert the OpenCL source code to a string// Convert the OpenCL source code to a string
-	string source;
-	ifstream file("Source_Files/opencl_kernel.cl");
-	if (!file) {
-		cout << "\nNo OpenCL file found!" << endl << "Exiting..." << endl;
-		system("PAUSE");
-		exit(1);
-	}
-	while (!file.eof()) {
-		char line[256];
-		file.getline(line, 255);
-		source += line;
-	}
-
-	const char* kernel_source = source.c_str();
-
-	// Create an OpenCL program with source
-	program = Program(context, kernel_source);
-
-	// Build the program for the selected device 
-	cl_int result = program.build({ device }); // "-cl-fast-relaxed-math"
-	if (result) cout << "Error on compilation of OpenCL code!!!\n (" << result << ")" << endl;
-	if (result == CL_BUILD_PROGRAM_FAILURE) printErrorLog(program, device);
-}
-
-
-/* -------------------------------------------------------------------------- */
-//	The following functions are used to set the OpenCL kernel
-/* -------------------------------------------------------------------------- */
-
+// init the kernel program; set init parameter
 void initCLKernel() {
 
 	// Create a kernel (entry point in the OpenCL source program)
@@ -206,16 +85,16 @@ void initCLKernel() {
 	kernel.setArg(8, cl_lights);
 	kernel.setArg(9, light_count);
 	kernel.setArg(10, cl_output);
+	kernel.setArg(11, pixel_skip+1);
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
-// with garma correction
-inline int toInt(float x){ return int( 255* pow(clamp(x), 1.0/1.0) ); }
+inline int toInt(float x){ return int( 255* clamp(x) ); }
 
 void runKernel(bool save_img) {
 	// every pixel in the image has its own thread or "work item",
 	// so the total amount of work items equals the number of pixels
-	std::size_t global_work_size = window_width * window_height;
+	std::size_t global_work_size = window_width * window_height ;
 	std::size_t local_work_size = kernel.getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device);;
 
 	// Ensure the global work size is a multiple of local work size
@@ -229,9 +108,21 @@ void runKernel(bool save_img) {
 	queue.enqueueAcquireGLObjects(&cl_vbos);
 	queue.finish();
 
+	// run the kernel 
+	if(checkFPS)
+		start_kernel = std::clock();
 	// launch the kernel
 	queue.enqueueNDRangeKernel(kernel, NULL, global_work_size, local_work_size); // local_work_size
 	queue.finish();
+	// check the kernel running time
+	if(checkFPS){
+		if (num_render == fps_check_rate){
+			cout << "Current time of calculation/frame is: " << (sum_duration_kernel/num_render) << endl; 
+			sum_duration_kernel = 0;
+		}
+		else
+			sum_duration_kernel += ( std::clock() - start_kernel ) / (double) CLOCKS_PER_SEC;
+	}
 
 	// save the image
 	if(save_img){
@@ -269,6 +160,9 @@ void update_frame(int value) {
 // function called to render everyframe
 void render() {
 
+	if(checkFPS)
+		start = std::clock();
+
 	if (buffer_reset) {
 		float arg = 0;
 		queue.enqueueFillBuffer(cl_accumbuffer, arg, 0, window_width * window_height * sizeof(cl_float3));
@@ -294,6 +188,18 @@ void render() {
 	runKernel(save_img);
 	drawGL();
 
+	if(checkFPS){
+		if (num_render == fps_check_rate){
+			cout << "Current FPS is: " << 1.0/(sum_duration/num_render) << endl; 
+			sum_duration = 0;
+			num_render = 0;
+		}
+		else{
+			sum_duration += ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+			num_render++;
+		}
+	}
+
 	// refresh
 	glutTimerFunc(1000.0/fps, update_frame, 0);
 
@@ -302,6 +208,8 @@ void render() {
 void cleanUp() {
 	delete cpu_output;
 }
+
+void check_fps();
 
 // initialise camera on the CPU
 void initCamera()
@@ -321,6 +229,9 @@ void main(int argc, char** argv) {
 
 	// initialise OpenCL to select platform/device
 	initOpenCL();
+
+	// ask if user wanna check FPS
+	check_fps();
 
 	// create vertex buffer object
 	createVBO(&vbo);
