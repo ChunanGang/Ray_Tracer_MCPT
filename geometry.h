@@ -16,7 +16,6 @@ struct Sphere
 	Vector3Df emission;
 
 	// added
-	Vector3Df ambient;
 	Vector3Df diffuse;
 	Vector3Df specular; 
 	float shininess;

@@ -7,8 +7,8 @@
 
 //#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"   // OpenCL-OpenGL interoperability extension
 
-const int window_width =  1920/2;
-const int window_height =  1080/2;
+const int window_width =  1920;
+const int window_height =  1080;
 
 // OpenGL vertex buffer object
 GLuint vbo;
@@ -24,7 +24,7 @@ void initGL(int argc, char** argv){
 	// specify the initial window position
 	glutInitWindowPosition(0, 0);
 	// specify the initial window size
-	glutInitWindowSize(window_width,window_height);
+	glutInitWindowSize(window_width/2,window_height/2);
 	// create the window and set title
 	glutCreateWindow("OpenCL Ray Tracer");
 

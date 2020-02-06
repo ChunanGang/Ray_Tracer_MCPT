@@ -24,8 +24,7 @@ typedef struct Sphere{
 	float radius;
 	float3 pos;
 	float3 emission;
-	/* added */
-	float3 ambient;
+
 	float3 diffuse;
 	float3 specular; 
 	float shinniness;
@@ -171,7 +170,7 @@ float3 trace(__constant Sphere* spheres, __constant Light* lights, const Ray* ca
 		float3 normal_facing = dot(normal, ray.dir) < 0.0f ? normal : normal * (-1.0f);
 
 		/* color from object itself */
-		float3 obj_col = hitsphere.ambient + hitsphere.emission;
+		float3 obj_col = hitsphere.emission;
 		/* color from lights */ 
 		for (int i =0; i < light_count; i++){
 			float3 eye_dir = -1.0f * ray.dir;
@@ -204,7 +203,7 @@ float3 trace(__constant Sphere* spheres, __constant Light* lights, const Ray* ca
 		ray.origin = hitpoint + normal_facing * EPSILON;
 		ray.dir = normalize(ray.dir - 2 * dot(ray.dir,normal_facing) * normal_facing);
 		accum_specular *= hitsphere.specular;
-		/* if reflection gets too slow, stop */
+		/* if reflection gets too low, stop */
 		if (length(accum_specular) < SPECULAR_THRESHOLD)
 			break;
 	}

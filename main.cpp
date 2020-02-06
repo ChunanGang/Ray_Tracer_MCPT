@@ -3,6 +3,8 @@
 // Adpadted from the:
 //	OpenCL ray tracing tutorial by Sam Lapere, 2016
 //	http://raytracey.blogspot.com
+
+// To set the windows size, go to cl_gl_interop.h
 #include <iostream>
 #include <fstream>
 #include <vector>
