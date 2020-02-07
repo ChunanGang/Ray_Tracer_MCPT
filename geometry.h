@@ -13,17 +13,12 @@ struct Sphere
 	float dummy2;
 	float dummy3;
 	Vector3Df position;
-	Vector3Df emission;
+	Vector3Df emission;  // the color of light that this object emit
 
 	// added
-	Vector3Df diffuse;
-	Vector3Df specular; 
+	Vector3Df specular; // the color of light that this object reflect
 	float shininess;
 	int dum1;
 	float dum2;
 	float dum3;
-};
-struct Light{
-	Vector3Df position;
-	Vector3Df color;
 };

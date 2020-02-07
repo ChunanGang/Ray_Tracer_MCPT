@@ -4,28 +4,21 @@
 /* interactive camera and depth-of-field code based on GPU path tracer by Karl Li and Peter Kutz */
 
 __constant float EPSILON = 0.0003f; /* req2uired to compensate for limited float precision */
+__constant int RECURSE_DEPTH = 8;
 __constant float PI = 3.14159265359f;
-__constant bool ANTI_ALIAS = true;
-__constant int RECURSE_DEPTH = 4;
-__constant float SPECULAR_THRESHOLD = 0.1; /* stop recursive when specular too low */
-__constant float3 background_color = (float3)(0,0,0);/*(float3)(30/256.0f, 65.0f/256.0f, 60.0f/256.0f);*/
+__constant float SPECULAR_THRESHOLD = 0.05; /* stop recursive when specular too low */
+__constant float3 background_color = (float3)(0.0);
 
 typedef struct Ray{
 	float3 origin;
 	float3 dir;
 } Ray;
 
-typedef struct Light{
-	float3 pos;
-	float3 color;
-} Light;
-
 typedef struct Sphere{
 	float radius;
 	float3 pos;
 	float3 emission;
 
-	float3 diffuse;
 	float3 specular; 
 	float shinniness;
 
@@ -120,24 +113,30 @@ bool intersect_scene(__constant Sphere* spheres, const Ray* ray, float* t, int* 
 	return *t < inf; /* true when ray interesects the scene */
 }
 
-/* compute the coloring from light */
-float3 computeLight(const float3 direction, const float3 lightcolor, const float3 normal,
-	const float3 halfvec, const float3 mydiffuse, const float3 myspecular, const float myshininess) 
-	{
-	float nDotL = dot(normal, direction);
-	float3 lambert = mydiffuse * lightcolor * max(nDotL, 0.0f);
 
-	float nDotH = dot(normal, halfvec);
-	float3 phong = myspecular * lightcolor * pow(max(nDotH, 0.0f), myshininess);
+static float get_random(unsigned int *seed0, unsigned int *seed1) {
 
-	float3 retval = lambert + phong;
-	return retval;
+	/* hash the seeds using bitwise AND operations and bitshifts */
+	*seed0 = 36969 * ((*seed0) & 65535) + ((*seed0) >> 16);
+	*seed1 = 18000 * ((*seed1) & 65535) + ((*seed1) >> 16);
+
+	unsigned int ires = ((*seed0) << 16) + (*seed1);
+
+	/* use union struct to convert int to float */
+	union {
+		float f;
+		unsigned int ui;
+	} res;
+
+	res.ui = (ires & 0x007fffff) | 0x40000000;  /* bitwise AND, bitwise OR */
+	return (res.f - 2.0f) / 2.0f;
 }
 
-/* the path tracing function */
+
+/* the path tracing function (Monte Carlo Version) */
 /* return the color thru the tracing process */
-float3 trace(__constant Sphere* spheres, __constant Light* lights, const Ray* camray, 
-	const int sphere_count, const int light_count){
+float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_count, 
+			int * seed0, int * seed1){
 
 	Ray ray = *camray;
 
@@ -156,7 +155,7 @@ float3 trace(__constant Sphere* spheres, __constant Light* lights, const Ray* ca
 			return accum_color += background_color;
 		/* if ray miss ON REFLECTION, break the loop */
 		else if ( !intersect && i > 0){
-			accum_color += background_color;
+			accum_color += background_color*accum_specular;
 			break;
 		}
 
@@ -169,40 +168,26 @@ float3 trace(__constant Sphere* spheres, __constant Light* lights, const Ray* ca
 		float3 normal = normalize(hitpoint - hitsphere.pos);
 		float3 normal_facing = dot(normal, ray.dir) < 0.0f ? normal : normal * (-1.0f);
 
-		/* color from object itself */
-		float3 obj_col = hitsphere.emission;
-		/* color from lights */ 
-		for (int i =0; i < light_count; i++){
-			float3 eye_dir = -1.0f * ray.dir;
-			float3 light_posn = lights[i].pos;
-			float3 light_color = lights[i].color;
-			/* we assume lights are all directional */
-			Ray light_ray;
-			light_ray.dir = normalize(light_posn);
-			light_ray.origin = hitpoint + EPSILON * light_ray.dir;
-			/* check if light blocked */
-			float travel_time = 0.0f;
-			float hit_id = 0;
-			if ( ! intersect_scene(spheres, &light_ray, &travel_time, 
-				&hit_id, sphere_count)   )
-				{
-					/* add light color if non-blocked */
-					float3 H = normalize(eye_dir + light_ray.dir);
-					float3 col_from_light = computeLight(
-						light_ray.dir, light_color, normal_facing,
-						H, hitsphere.diffuse, hitsphere.specular,
-						hitsphere.shinniness
-					);
-					obj_col += col_from_light;
-			}
-		}
-		accum_color += obj_col * accum_specular;
-
-		/* start to compute the reflection */
-		/* update the ray */
+		/* compute the next ray */
+		float rand1 = 2.0f * PI * get_random(seed0, seed1);
+		float rand2 = get_random(seed0, seed1);
+		float rand2s = sqrt(rand2);
+		/* create a local orthogonal coordinate frame centered at the hitpoint */
+		float3 w = normal_facing;
+		float3 axis = fabs(w.x) > 0.1f ? (float3)(0.0f, 1.0f, 0.0f) : (float3)(1.0f, 0.0f, 0.0f);
+		float3 u = normalize(cross(axis, w));
+		float3 v = cross(w, u);
+		/* use the coordinte frame and random numbers to compute the next ray direction */
+		float3 newdir = normalize(u * cos(rand1)*rand2s + v*sin(rand1)*rand2s + w*sqrt(1.0f - rand2));
+		/* add a very small offset to the hitpoint to prevent self intersection */
 		ray.origin = hitpoint + normal_facing * EPSILON;
-		ray.dir = normalize(ray.dir - 2 * dot(ray.dir,normal_facing) * normal_facing);
+		ray.dir = newdir;
+
+		/* accumulate color and specular */
+		accum_color += hitsphere.emission * accum_specular;
 		accum_specular *= hitsphere.specular;
+		accum_specular *= dot(newdir, normal_facing);
+
 		/* if reflection gets too low, stop */
 		if (length(accum_specular) < SPECULAR_THRESHOLD)
 			break;
@@ -215,50 +200,24 @@ union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
-	__global float3* accumbuffer, __constant Light* lights, const int light_count, __global float3* output2,
-	const int pixel_skip)
+	__global float3* accumbuffer, __global float3* output2, const int num_sample)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
 	
-	/* skip some pixels */
-	if (x_coord % pixel_skip != 0 || y_coord % pixel_skip != 0){
-		output[work_item_id] = (float3)(x_coord, y_coord, 0);
-		output2[work_item_id] = (float3)(0,0,0);
-		return;
-	}
-	
-	float3 finalcolor = (float3)(0.0f, 0.0f, 0.0f);
+	unsigned int seed0 = x_coord + framenumber;
+	unsigned int seed1 = y_coord + framenumber;
 
-	/* anti-alising */
-	if (ANTI_ALIAS){
-		for (unsigned int i = 0; i < 4; i++){
-			Ray camray;
-			if (i==0){
-				camray = createCamRay(x_coord - 0.25, y_coord - 0.25, width, height, cam);
-			}
-			else if (i==1){
-				camray = createCamRay(x_coord + 0.25, y_coord - 0.25, width, height, cam);
-			}
-			else if(i==2){
-				camray = createCamRay(x_coord + 0.25, y_coord + 0.25, width, height, cam);
-			}
-			else{
-				camray = createCamRay(x_coord - 0.25, y_coord + 0.25, width, height, cam);
-			}
-			finalcolor += trace(spheres, lights, &camray, sphere_count, light_count);
-		}
-		finalcolor = finalcolor / 4;
-	}
-	else{
-		Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
-		finalcolor += trace(spheres, lights, &camray, sphere_count, light_count);
+	float3 finalcolor = (float3)(0.0);
+	Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
+	for (int i = 0; i<num_sample; i++){
+		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1) *1.0f/ num_sample;
 	}
 
 	/* add pixel colour to accumulation buffer (accumulates all samples) */
 	accumbuffer[work_item_id] += finalcolor;
-	float3 tempcolor = accumbuffer[work_item_id] / framenumber; 
+	float3 tempcolor = accumbuffer[work_item_id] / (framenumber); 
 
 	tempcolor = (float3)(
 		clamp(tempcolor.x, 0.0f, 1.0f),
@@ -275,4 +234,5 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	/* store the pixelcolour in the output buffer */
 	output[work_item_id] = (float3)(x_coord, y_coord, fcolor.c);
 	output2[work_item_id] = tempcolor;
+
 }

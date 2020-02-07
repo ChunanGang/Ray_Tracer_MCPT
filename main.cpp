@@ -4,6 +4,8 @@
 //	OpenCL ray tracing tutorial by Sam Lapere, 2016
 //	http://raytracey.blogspot.com
 
+// TODO: PASS RAND FROM MAIN TO CL. SEE TUTORIAL PART2; FIX USE INTERACTION; USE SHINIESS
+
 // To set the windows size, go to cl_gl_interop.h
 #include <iostream>
 #include <fstream>
@@ -26,21 +28,20 @@ const int fps_check_rate = 30; // print fps every 30 frames
 
 const int pixel_skip = 0; // skip some pixel when render
 
+const int num_sample = 64; // sample of MCPT
+
 // get from Scene.cpp
 const int sphere_count = sphere_num;
-const int light_count = light_num;
 
 // !!! resolution of window is defined in cl_gl_interop.h
 
 // scene object variable
 Buffer cl_spheres;
-Buffer cl_lights;
 Buffer cl_camera;
 Buffer cl_accumbuffer;
 BufferGL cl_vbo;
 Camera* hostRendercam = NULL;
 Sphere cpu_spheres[sphere_count];
-Light cpu_lights[light_count];
 
 vector<Memory> cl_vbos;
 cl_float4 * cpu_output;
@@ -84,10 +85,8 @@ void initCLKernel() {
 	kernel.setArg(5, 0);
 	kernel.setArg(6, cl_camera);
 	kernel.setArg(7, cl_accumbuffer);
-	kernel.setArg(8, cl_lights);
-	kernel.setArg(9, light_count);
-	kernel.setArg(10, cl_output);
-	kernel.setArg(11, pixel_skip+1);
+	kernel.setArg(8, cl_output);
+	kernel.setArg(9, num_sample);
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
@@ -245,15 +244,13 @@ void main(int argc, char** argv) {
 	glFinish();
 
 	// initialise scene
-	initScene(cpu_spheres, cpu_lights);
+	initScene(cpu_spheres);
 	FreeImage_Initialise();
 	pixels = new BYTE[3 * window_width*window_height];
 
 	// scene buffer
 	cl_spheres = Buffer(context, CL_MEM_READ_ONLY, sphere_count * sizeof(Sphere));
-	cl_lights = Buffer(context, CL_MEM_READ_ONLY, light_count * sizeof(Light));
 	queue.enqueueWriteBuffer(cl_spheres, CL_TRUE, 0, sphere_count * sizeof(Sphere), cpu_spheres);
-	queue.enqueueWriteBuffer(cl_lights, CL_TRUE, 0, light_count * sizeof(Light), cpu_lights);
 
 	// initialise an interactive camera on the CPU side
 	initCamera();
