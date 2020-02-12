@@ -4,7 +4,6 @@
 //	OpenCL ray tracing tutorial by Sam Lapere, 2016
 //	http://raytracey.blogspot.com
 
-// TODO: PASS RAND FROM MAIN TO CL. SEE TUTORIAL PART2; FIX USE INTERACTION; USE SHINIESS
 
 // To set the windows size, go to cl_gl_interop.h
 #include <iostream>
@@ -87,6 +86,8 @@ void initCLKernel() {
 	kernel.setArg(7, cl_accumbuffer);
 	kernel.setArg(8, cl_output);
 	kernel.setArg(9, num_sample);
+	kernel.setArg(10, rand());
+	kernel.setArg(11, rand());
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
@@ -181,6 +182,8 @@ void render() {
 
 	kernel.setArg(5, interactiveCamera->framenumber);
 	kernel.setArg(6, cl_camera);
+	kernel.setArg(10, rand());
+	kernel.setArg(11, rand());
 
 	// delegate the kernel to run the rendering process
 	save_img = interactiveCamera->save_img;

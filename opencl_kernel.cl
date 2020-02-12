@@ -170,7 +170,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 
 		/* compute the next ray */
 		float rand1 = 2.0f * PI * get_random(seed0, seed1);
-		float rand2 = get_random(seed0, seed1);
+		float rand2 = get_random(seed1, seed0);
 		float rand2s = sqrt(rand2);
 		/* create a local orthogonal coordinate frame centered at the hitpoint */
 		float3 w = normal_facing;
@@ -200,14 +200,14 @@ union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
-	__global float3* accumbuffer, __global float3* output2, const int num_sample)
+	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
 	
-	unsigned int seed0 = x_coord + framenumber;
-	unsigned int seed1 = y_coord + framenumber;
+	unsigned int seed0 = x_coord * framenumber % 1000 + (rand0 * 100);
+	unsigned int seed1 = y_coord * framenumber % 1000 + (rand1 * 100);
 
 	float3 finalcolor = (float3)(0.0);
 	Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
@@ -219,10 +219,14 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	accumbuffer[work_item_id] += finalcolor;
 	float3 tempcolor = accumbuffer[work_item_id] / (framenumber); 
 
-	tempcolor = (float3)(
-		clamp(tempcolor.x, 0.0f, 1.0f),
-		clamp(tempcolor.y, 0.0f, 1.0f), 
-		clamp(tempcolor.z, 0.0f, 1.0f));
+	/* clamp the color if more than 1 */
+	float max_color = max(tempcolor.x,tempcolor.y);
+	max_color = max(max_color,tempcolor.z);
+	if(max_color >= 1){
+		tempcolor.x /= max_color;
+		tempcolor.y /= max_color;
+		tempcolor.z /= max_color;
+	}
 
 	union Colour fcolor;
 	fcolor.components = (uchar4)(
