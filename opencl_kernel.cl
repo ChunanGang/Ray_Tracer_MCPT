@@ -20,7 +20,7 @@ typedef struct Sphere{
 	float3 emission;
 
 	float3 specular; 
-	float shinniness;
+	float shininess;
 
 } Sphere;
 
@@ -167,6 +167,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		/* compute the surface normal and flip it if necessary to face the incoming ray */
 		float3 normal = normalize(hitpoint - hitsphere.pos);
 		float3 normal_facing = dot(normal, ray.dir) < 0.0f ? normal : normal * (-1.0f);
+		float3 reflect_dir = normalize(ray.dir - 2 * dot(ray.dir,normal_facing) * normal_facing);
 
 		/* compute the next ray */
 		float rand1 = 2.0f * PI * get_random(seed0, seed1);
@@ -178,7 +179,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		float3 u = normalize(cross(axis, w));
 		float3 v = cross(w, u);
 		/* use the coordinte frame and random numbers to compute the next ray direction */
-		float3 newdir = normalize(u * cos(rand1)*rand2s + v*sin(rand1)*rand2s + w*sqrt(1.0f - rand2));
+		float3 newdir = normalize(u * cos(rand1)*rand2s + v*sin(rand1)*rand2s + w*sqrt(1.0f - rand2) + reflect_dir*rand2s*hitsphere.shininess);
 		/* add a very small offset to the hitpoint to prevent self intersection */
 		ray.origin = hitpoint + normal_facing * EPSILON;
 		ray.dir = newdir;
