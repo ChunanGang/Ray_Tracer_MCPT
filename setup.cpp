@@ -16,6 +16,10 @@ Program program;
 // timer
 bool checkFPS = false;
 
+// for ray trace
+static int num_sample = 16; // sample of MCPT
+static int acu_sample = 0; // accumulate light sample colors every frame (0-false;1-true).
+
 // ask if the user want to keep track of FPS
 void check_fps(){
 	int input = -1;
@@ -25,6 +29,24 @@ void check_fps(){
 	}
 	if (input ==1 ){
 		checkFPS = true;
+	}
+}
+
+void set_MCPT_para(){
+	int num_sam = -1;
+	while (num_sam <0 ) {
+		cout << "\nHow many samples of ray you want for the Monte Carlo Ray Tracing? \n";
+		cin >> num_sam;
+	}
+	num_sample = num_sam;
+
+	int input = -1;
+	while (input != 1 && input != 2) {
+		cout << "\nWould you like to keep sampling when the windows does not move? 1-Yes, 2-No. \n";
+		cin >> input;
+	}
+	if (input == 1) {
+		acu_sample = 1;
 	}
 }
 

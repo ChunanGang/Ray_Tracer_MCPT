@@ -4,8 +4,10 @@
 //	OpenCL ray tracing tutorial by Sam Lapere, 2016
 //	http://raytracey.blogspot.com
 
-
+// ========= NOTE =======
 // To set the windows size, go to cl_gl_interop.h
+// ======================
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -25,14 +27,9 @@ using namespace cl;
 const int fps = 40;
 const int fps_check_rate = 30; // print fps every 30 frames
 
-const int pixel_skip = 0; // skip some pixel when render
-
-const int num_sample = 64; // sample of MCPT
 
 // get from Scene.cpp
 const int sphere_count = sphere_num;
-
-// !!! resolution of window is defined in cl_gl_interop.h
 
 // scene object variable
 Buffer cl_spheres;
@@ -88,6 +85,7 @@ void initCLKernel() {
 	kernel.setArg(9, num_sample);
 	kernel.setArg(10, rand());
 	kernel.setArg(11, rand());
+	kernel.setArg(12, acu_sample);
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
@@ -116,16 +114,7 @@ void runKernel(bool save_img) {
 	// launch the kernel
 	queue.enqueueNDRangeKernel(kernel, NULL, global_work_size, local_work_size); // local_work_size
 	queue.finish();
-	// check the kernel running time
-	if(checkFPS){
-		if (num_render == fps_check_rate){
-			cout << "Current time of calculation/frame is: " << (sum_duration_kernel/num_render) << endl; 
-			sum_duration_kernel = 0;
-		}
-		else
-			sum_duration_kernel += ( std::clock() - start_kernel ) / (double) CLOCKS_PER_SEC;
-	}
-
+	
 	// save the image
 	if(save_img){
 		// first get the buffer data to cpu
@@ -194,7 +183,7 @@ void render() {
 
 	if(checkFPS){
 		if (num_render == fps_check_rate){
-			cout << "Current FPS is: " << 1.0/(sum_duration/num_render) << endl; 
+			cout << "\n === Current FPS is: " << 1.0/(sum_duration/num_render) << " ===\n"; 
 			sum_duration = 0;
 			num_render = 0;
 		}
@@ -212,8 +201,6 @@ void render() {
 void cleanUp() {
 	delete cpu_output;
 }
-
-void check_fps();
 
 // initialise camera on the CPU
 void initCamera()
@@ -236,6 +223,8 @@ void main(int argc, char** argv) {
 
 	// ask if user wanna check FPS
 	check_fps();
+	// set MCPT para
+	set_MCPT_para();
 
 	// create vertex buffer object
 	createVBO(&vbo);

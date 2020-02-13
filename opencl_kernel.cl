@@ -201,7 +201,7 @@ union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
-	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1)
+	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1, const int acu_sample)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
@@ -216,9 +216,16 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1) *1.0f/ num_sample;
 	}
 
+	/* skip update when framenumber more than 1 and does not need to acumulate sample*/
+	if(framenumber>1 && acu_sample ==0)
+		return;
+
 	/* add pixel colour to accumulation buffer (accumulates all samples) */
-	accumbuffer[work_item_id] += finalcolor;
-	float3 tempcolor = accumbuffer[work_item_id] / (framenumber); 
+	float3 tempcolor = finalcolor;
+	if(acu_sample != 0){
+		accumbuffer[work_item_id] += finalcolor;
+		float3 tempcolor = accumbuffer[work_item_id] / (framenumber); 
+	}
 
 	/* clamp the color if more than 1 */
 	float max_color = max(tempcolor.x,tempcolor.y);
