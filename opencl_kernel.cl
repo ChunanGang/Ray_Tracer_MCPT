@@ -224,7 +224,7 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	float3 tempcolor = finalcolor;
 	if(acu_sample != 0){
 		accumbuffer[work_item_id] += finalcolor;
-		float3 tempcolor = accumbuffer[work_item_id] / (framenumber); 
+		tempcolor = accumbuffer[work_item_id] / (framenumber); 
 	}
 
 	/* clamp the color if more than 1 */

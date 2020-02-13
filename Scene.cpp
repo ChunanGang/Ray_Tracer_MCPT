@@ -18,7 +18,7 @@ void initScene(Sphere* cpu_spheres) {
 	cpu_spheres[1].position = Vector3Df(-0.25f, -0.24f, -0.1f);
 	cpu_spheres[1].specular = Vector3Df(0.6f, 0.7f, 0.9f);
 	cpu_spheres[1].emission = Vector3Df(0.0f, 0.0f, 0.0f);
-	cpu_spheres[1].shininess = 10;
+	cpu_spheres[1].shininess = 100;
 
 	// right sphere
 	cpu_spheres[2].radius = 0.16f;
