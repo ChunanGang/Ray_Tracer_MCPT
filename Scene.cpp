@@ -46,5 +46,4 @@ void initScene(Sphere* cpu_spheres) {
 	cpu_spheres[5].emission = Vector3Df(4.9f, 4.02f, 2.16f);
 	cpu_spheres[5].shininess = 0;
 
-
 }

@@ -1,13 +1,43 @@
-/* Modified from:
-/* simple sphere path tracer by Sam Lapere, 2016*/
-/* http://raytracey.blogspot.com */
-/* interactive camera and depth-of-field code based on GPU path tracer by Karl Li and Peter Kutz */
+
 
 __constant float EPSILON = 0.0003f; /* req2uired to compensate for limited float precision */
-__constant int RECURSE_DEPTH = 8;
+__constant int RECURSE_DEPTH = 6;
 __constant float PI = 3.14159265359f;
 __constant float SPECULAR_THRESHOLD = 0.05; /* stop recursive when specular too low */
 __constant float3 background_color = (float3)(0.0);
+
+/* standard directions that get mapped into*/
+
+__constant float3 standard_dirs[] = { (float3)(0.5774f, 0.5774f, 0.5774f),
+	(float3)(-0.5774f, -0.5774f, -0.5774f) ,
+	(float3)(0.5774f, -0.5774f, -0.5774f),
+	(float3)(-0.5774f, 0.5774f, -0.5774f),
+	(float3)(-0.5774f, -0.5774f, 0.5774f),
+	(float3)(-0.5774f, 0.5774f, 0.5774f),
+	(float3)(0.5774f, -0.5774f, 0.5774f),
+	(float3)(0.5774f, 0.5774f, -0.5774f),
+
+	(float3)(1.0f, 0.0f, 0.0f),
+	(float3)(0.0f, 1.0f, 0.0f),
+	(float3)(0.0f, 0.0f, 1.0f),
+	(float3)(-1.0f, 0.0f, 0.0f),
+	(float3)(0.0f, -1.0f, 0.0f),
+	(float3)(0.0f, 0.0f, -1.0f),
+
+	(float3)(0.0f, 0.7071f, 0.7071f),
+	(float3)(0.0f, -0.7071f, -0.7071f),
+	(float3)(0.7071f, 0.0f, 0.7071f),
+	(float3)(-0.7071f, 0.0f, -0.7071f),
+	(float3)(0.7071f, 0.7071f, 0.0f),
+	(float3)(-0.7071f, -0.7071f, 0.0f),
+
+	(float3)(0.0f, 0.7071f, -0.7071f),
+	(float3)(0.0f, -0.7071f, 0.7071f),
+	(float3)(-0.7071f, 0.0f, 0.7071f),
+	(float3)(0.7071f, 0.0f, -0.7071f),
+	(float3)(0.7071f, -0.7071f, 0.0f),
+	(float3)(-0.7071f, 0.7071f, 0.0f),
+};
 
 typedef struct Ray{
 	float3 origin;
@@ -33,6 +63,26 @@ typedef struct Camera{
 	float apertureRadius;
 	float focalDistance;
 } Camera;
+
+typedef struct Q_Table_Node {
+	float action[26] ; /* directions */
+	float max ;
+}Qnode;
+
+
+/* map the input direction into one of the stantard directions */
+int map_direction(const float3 dir) {
+	float min = 1000.0;
+	int min_index = -1;
+	for (int i = 0; i < 26; i++) {
+		float dist = length(dir - standard_dirs[i]);
+		if (dist < min) {
+			min = dist;
+			min_index = i;
+		}
+	}
+	return min_index;
+}
 
 Ray createCamRay(const int x_coord, const int y_coord, const int width, const int height, __constant Camera* cam){
 
@@ -140,14 +190,20 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 
 	Ray ray = *camray;
 
+
 	float3 accum_color = (float3)(0.0f, 0.0f, 0.0f);
 
 	float t;   /* distance to intersection */
-	int hitsphere_id = 0; /* index of intersected sphere */	
+	int hitsphere_id = -1; /* index of intersected sphere */	
 	float3 accum_specular = (float3)(1.0f, 1.0f, 1.0f); /* specular of prev objs */
 
 	/* start the tracing process */
 	for (int i = 0; i < RECURSE_DEPTH; i++){
+
+		/* todo, get the reward on current step (emission of sphere)*/
+		if (hitsphere_id != -1 && length(spheres[hitsphere_id].emission) > 0) {
+			/*collect reward*/
+		}
 
 		/* if ray misses scene, return background colour ON THE FIRST RAY*/
 		bool intersect = intersect_scene(spheres, &ray, &t, &hitsphere_id, sphere_count);
@@ -201,7 +257,8 @@ union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
-	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1, const int acu_sample)
+	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1, const int acu_sample,
+	const int Qtable_size, __global Qnode* Qtable)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
@@ -215,16 +272,28 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	for (int i = 0; i<num_sample; i++){
 		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1) *1.0f/ num_sample;
 	}
+	float3 tempcolor = finalcolor;
 
 	/* skip update when framenumber more than 1 and does not need to acumulate sample*/
 	if(framenumber>1 && acu_sample ==0)
 		return;
 
+	/* reset acum buffer */
+	else if(framenumber == 1){
+		/*
+		if(length(finalcolor) < 0.1)
+			accumbuffer[work_item_id] = finalcolor * (float)0.0 + accumbuffer[work_item_id] * (float)1.0;
+		else
+			accumbuffer[work_item_id] = finalcolor * (float)0.2 + accumbuffer[work_item_id] * (float)0.8;
+		tempcolor = accumbuffer[work_item_id];
+		*/
+		accumbuffer[work_item_id] = finalcolor;
+	}
+
 	/* add pixel colour to accumulation buffer (accumulates all samples) */
-	float3 tempcolor = finalcolor;
-	if(acu_sample != 0){
-		accumbuffer[work_item_id] += finalcolor;
-		tempcolor = accumbuffer[work_item_id] / (framenumber); 
+	else{
+		accumbuffer[work_item_id] = accumbuffer[work_item_id] + (finalcolor - accumbuffer[work_item_id])/framenumber;
+		tempcolor = accumbuffer[work_item_id]; 
 	}
 
 	/* clamp the color if more than 1 */

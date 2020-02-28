@@ -28,6 +28,7 @@ const int fps = 40;
 const int fps_check_rate = 30; // print fps every 30 frames
 
 
+const int Qtable_size = 1000;
 // get from Scene.cpp
 const int sphere_count = sphere_num;
 
@@ -35,9 +36,11 @@ const int sphere_count = sphere_num;
 Buffer cl_spheres;
 Buffer cl_camera;
 Buffer cl_accumbuffer;
+Buffer Qtable;
 BufferGL cl_vbo;
 Camera* hostRendercam = NULL;
 Sphere cpu_spheres[sphere_count];
+Qnode Qtable_cpu[Qtable_size];
 
 vector<Memory> cl_vbos;
 cl_float4 * cpu_output;
@@ -86,6 +89,8 @@ void initCLKernel() {
 	kernel.setArg(10, rand());
 	kernel.setArg(11, rand());
 	kernel.setArg(12, acu_sample);
+	kernel.setArg(13, Qtable_size);
+	kernel.setArg(14, Qtable);
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
@@ -114,7 +119,7 @@ void runKernel(bool save_img) {
 	// launch the kernel
 	queue.enqueueNDRangeKernel(kernel, NULL, global_work_size, local_work_size); // local_work_size
 	queue.finish();
-	
+
 	// save the image
 	if(save_img){
 		// first get the buffer data to cpu
@@ -156,7 +161,7 @@ void render() {
 
 	if (buffer_reset) {
 		float arg = 0;
-		queue.enqueueFillBuffer(cl_accumbuffer, arg, 0, window_width * window_height * sizeof(cl_float3));
+		//queue.enqueueFillBuffer(cl_accumbuffer, arg, 0, window_width * window_height * sizeof(cl_float3));
 		interactiveCamera->framenumber = 0;
 	} 
 
@@ -212,6 +217,15 @@ void initCamera()
 	interactiveCamera->setFOVX(45);
 }
 
+void initQtable(Qnode * Qtable) {
+	for (int i = 0; i < Qtable_size; i++) {
+		Qtable[i].max = 0.0f;
+		for (int j = 0; j < 26; j++) {
+			Qtable[i].action[j] = 0.0f;
+		}
+	}
+}
+
 void main(int argc, char** argv) {
 
 	// initialise OpenGL (GLEW and GLUT window + callback functions)
@@ -237,12 +251,16 @@ void main(int argc, char** argv) {
 
 	// initialise scene
 	initScene(cpu_spheres);
+	initQtable(Qtable_cpu);
 	FreeImage_Initialise();
 	pixels = new BYTE[3 * window_width*window_height];
 
 	// scene buffer
 	cl_spheres = Buffer(context, CL_MEM_READ_ONLY, sphere_count * sizeof(Sphere));
 	queue.enqueueWriteBuffer(cl_spheres, CL_TRUE, 0, sphere_count * sizeof(Sphere), cpu_spheres);
+	// q learning table
+	Qtable = Buffer(context, CL_MEM_READ_WRITE, Qtable_size * sizeof(Qnode));
+	queue.enqueueWriteBuffer(Qtable, CL_TRUE, 0, Qtable_size * sizeof(Qnode), Qtable_cpu);
 
 	// initialise an interactive camera on the CPU side
 	initCamera();

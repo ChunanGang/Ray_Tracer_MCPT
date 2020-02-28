@@ -1,0 +1,9 @@
+RT w/t RL:
+	DONE: 
+		light dir mapping
+		q table creation & buffer transfer
+		
+	TODO:(in material_functions.h)
+		use the q learning in the trace function
+		Q(ray.origin, ray.dir) = (1-alpha)Q(ray.origin, ray.dir) + alpha(reward(ray.origin) + y*max(Q(ray.hit) )
+		(move the rand generation outside)

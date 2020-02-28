@@ -22,3 +22,9 @@ struct Sphere
 	float dum2;
 	float dum3;
 };
+
+/* used for reinforcement learning, not actual scene obj */
+typedef struct Q_Table_Node {
+	float action[26]; /* directions */
+	float max;
+}Qnode;
