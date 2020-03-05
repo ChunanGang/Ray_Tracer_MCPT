@@ -28,7 +28,6 @@ const int fps = 40;
 const int fps_check_rate = 30; // print fps every 30 frames
 
 
-const int Qtable_size = 1000;
 // get from Scene.cpp
 const int sphere_count = sphere_num;
 
@@ -119,6 +118,12 @@ void runKernel(bool save_img) {
 	// launch the kernel
 	queue.enqueueNDRangeKernel(kernel, NULL, global_work_size, local_work_size); // local_work_size
 	queue.finish();
+
+	//debug
+	/*
+	queue.enqueueReadBuffer(Qtable, CL_TRUE, 0, Qtable_size* sizeof(Qnode), Qtable_cpu);
+	std::cout << std::fixed;
+	std::cout <<"---" << Qtable_cpu[2].max << "\n";*/
 
 	// save the image
 	if(save_img){
@@ -227,7 +232,7 @@ void initQtable(Qnode * Qtable) {
 }
 
 void main(int argc, char** argv) {
-
+	
 	// initialise OpenGL (GLEW and GLUT window + callback functions)
 	initGL(argc, argv);
 	cout << "OpenGL initialized \n";
