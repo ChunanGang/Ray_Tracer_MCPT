@@ -27,4 +27,5 @@ struct Sphere
 typedef struct Q_Table_Node {
 	float action[26]; /* directions */
 	float max;
+	int max_dir;
 }Qnode;

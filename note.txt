@@ -1,2 +1,4 @@
-try to use max as direction 
-print out q table
+1. make sure the leanring part is working (is not learning continiously)
+ no learning at (0,0,0 )->230700
+ !!! only dir: 0,1,12
+2. how to use the learned result

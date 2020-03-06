@@ -1,12 +1,13 @@
 
 
 __constant float EPSILON = 0.0003f; /* req2uired to compensate for limited float precision */
-__constant int RECURSE_DEPTH = 6;
+__constant int RECURSE_DEPTH = 4;
 __constant float PI = 3.14159265359f;
 __constant float SPECULAR_THRESHOLD = 0.05; /* stop recursive when specular too low */
 __constant float3 background_color = (float3)(0.0);
 
 /* RL part */
+__constant int useRL = 1;
 /* standard directions that get mapped into */
 __constant float3 standard_dirs[] = { (float3)(0.5774f, 0.5774f, 0.5774f),
 	(float3)(-0.5774f, -0.5774f, -0.5774f) ,
@@ -39,18 +40,18 @@ __constant float3 standard_dirs[] = { (float3)(0.5774f, 0.5774f, 0.5774f),
 	(float3)(-0.7071f, 0.7071f, 0.0f),
 };
 /* q learning segmentation */
-__constant float section = 0.05;
 __constant float y_min = -0.2f;
 __constant float y_max = 3.0f;
 __constant float x_min = -6.0f;
 __constant float x_max = 6.0f;
 __constant float z_min = -6.0f;
 __constant float z_max = 6.0f;
+__constant float section = 0.1;
 __constant int y_size = 32;
-__constant int x_size =240;
-__constant int z_size = 240;
+__constant int x_size =120;
+__constant int z_size = 120;
 /* q learning para */
-__constant float LR = 0.001;
+__constant float LR = 0.0004;
 __constant float GAMMA = 0.8;
 
 typedef struct Ray{
@@ -81,6 +82,7 @@ typedef struct Camera{
 typedef struct Q_Table_Node {
 	float action[26] ; /* directions */
 	float max ;
+	int max_dir;
 }Qnode;
 
 
@@ -184,19 +186,14 @@ static float get_random(unsigned int *seed0, unsigned int *seed1) {
 
 /* use the coordinte frame and random numbers to compute the next ray direction */
 static float3 generate_rand_dir(int * seed0, int * seed1, float3 normal_facing, float3 reflect_dir, float shininess) {
-	/* compute the next ray */
-	float rand1 = 2.0f * PI * get_random(seed0, seed1);
-	float rand2 = get_random(seed1, seed0);
-	float rand2s = sqrt(rand2);
-	/* create a local orthogonal coordinate frame centered at the hitpoint */
-	float3 w = normal_facing;
-	float3 axis = fabs(w.x) > 0.1f ? (float3)(0.0f, 1.0f, 0.0f) : (float3)(1.0f, 0.0f, 0.0f);
-	float3 u = normalize(cross(axis, w));
-	float3 v = cross(w, u);
-	/* use the coordinte frame and random numbers to compute the next ray direction */
-	float3 newdir = normalize(u * cos(rand1)*rand2s + v * sin(rand1)*rand2s + w * sqrt(1.0f - rand2) + reflect_dir * rand2s*shininess);
 
-	return newdir;
+	float alpha = 2.0 * PI * get_random(seed0, seed1);
+	float z = get_random(seed0, seed1);
+	float sineTheta = sqrt(1 - z);
+	float3 w = normal_facing;
+	float3 u = normalize(cross((fabs(w.x) > .1f ? (float3)(0.0f, 1.0f, 0.0f) : (float3)(1.0f, 0.0f, 0.0f)), w));
+	float3 v = cross(w, u);
+	return normalize(u * cos(alpha) * sineTheta + v * sin(alpha) * sineTheta + w * sqrt(z));
 }
 
 static int get_Qtable_index(const float3 position) {
@@ -226,27 +223,14 @@ static int check_pos_valid(const float3 pos) {
 	return 0;
 }
 
-static int update_Qtable(__global Qnode* Qtable, float3 next_hit, float3 cur_point, float3 cur_dir, float reward) {
-	/* check if position valid*/
-	if (check_pos_valid(cur_point) == 0 )
-		return -1;
-	/* cast to Qtable index and map to standard dir */
-	int cur_Q_index = get_Qtable_index(cur_point);
-	int next_Q_index = get_Qtable_index(next_hit);
-	int dir_index = map_direction(cur_dir);
+static void update_Qtable(__global Qnode* Qtable, const int cur_Q_index, const int dir_index, const float new_val) {
 	/* update with bellman equa */
-	if (check_pos_valid(next_hit) == 0) {
-		Qtable[cur_Q_index].action[dir_index] = (1 - LR)*(Qtable[cur_Q_index].action[dir_index])
-			+ LR * reward;
-		Qtable[cur_Q_index].max = max(Qtable[cur_Q_index].max, Qtable[cur_Q_index].action[dir_index]);
-		return -1;
+	Qtable[cur_Q_index].action[dir_index] = (1 - LR)*(Qtable[cur_Q_index].action[dir_index])
+		+ LR * new_val;
+	if (Qtable[cur_Q_index].max < Qtable[cur_Q_index].action[dir_index]) {
+		Qtable[cur_Q_index].max = Qtable[cur_Q_index].action[dir_index];
+		Qtable[cur_Q_index].max_dir = dir_index;
 	}
-	else {
-		Qtable[cur_Q_index].action[dir_index] = (1 - LR)*(Qtable[cur_Q_index].action[dir_index])
-			+ LR * (reward + GAMMA * Qtable[next_Q_index].max);
-		Qtable[cur_Q_index].max = max(Qtable[cur_Q_index].max, Qtable[cur_Q_index].action[dir_index]);
-	}
-	return next_Q_index;
 }
 
 
@@ -255,7 +239,7 @@ static int update_Qtable(__global Qnode* Qtable, float3 next_hit, float3 cur_poi
 /* RL equation used: 
 	Q(ray.origin, ray.dir) = (1-LR)Q(ray.origin, ray.dir) + LR(reward(ray.origin) + gamma*max(Q(ray.hit) )*/
 float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_count, 
-			int * seed0, int * seed1, __global Qnode* Qtable){
+			int * seed0, int * seed1, __global Qnode* Qtable, const int debug){
 
 	Ray ray = *camray;
 
@@ -269,12 +253,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 	/* start the tracing process */
 	for (int i = 0; i < RECURSE_DEPTH; i++){
 
-		/* todo, get the reward on current step (emission of sphere); ignore the first ray from camera*/
-		if (hitsphere_id != -1 && length(spheres[hitsphere_id].emission) > 0) {
-			/*collect reward on current state*/
-			reward = length(spheres[hitsphere_id].emission);
-		}
-		else reward = 0.0;
+		int cur_Q_index_valid = check_pos_valid(ray.origin);
 
 		/* shoot the ray */
 		bool intersect = intersect_scene(spheres, &ray, &t, &hitsphere_id, sphere_count);
@@ -284,17 +263,25 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		/* if ray miss ON REFLECTION, break the loop */
 		else if ( !intersect && i > 0){
 			accum_color += background_color*accum_specular;
+			/* update Q table */
+			if (useRL && cur_Q_index_valid && !debug)
+				update_Qtable(Qtable, get_Qtable_index(ray.origin), map_direction(ray.dir), reward);
 			break;
 		}
 		/* else, we've got a hit! Fetch the closest hit sphere */
 		Sphere hitsphere = spheres[hitsphere_id]; /* version with local copy of sphere */
 		/* compute the hitpoint using the ray equation */
 		float3 hitpoint = ray.origin + ray.dir * t;
+		int next_Q_index_valid = check_pos_valid(hitpoint);
+		int next_Q_index = get_Qtable_index(hitpoint);
 
-		int hit_Q_index = -1;
-		/* update Q table */
-		if(i!=0)
-			hit_Q_index = update_Qtable(Qtable, hitpoint, ray.origin, ray.dir, reward);/*q table is updated here*/
+		/* update Q table if the current point is valid */
+		if (useRL && !debug && cur_Q_index_valid && i!=0) {
+			if (next_Q_index_valid)
+				update_Qtable(Qtable, get_Qtable_index(ray.origin), map_direction(ray.dir), reward + GAMMA * Qtable[next_Q_index].max);
+			else
+				update_Qtable(Qtable, get_Qtable_index(ray.origin), map_direction(ray.dir), reward);
+		}
 
 		/* compute the surface normal and flip it if necessary to face the incoming ray */
 		float3 normal = normalize(hitpoint - hitsphere.pos);
@@ -302,13 +289,22 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		float3 reflect_dir = normalize(ray.dir - 2 * dot(ray.dir,normal_facing) * normal_facing);
 		float3 newdir = (0.0);
 		/* get the new ray's dir according to the q learning result so far */
-		if (hit_Q_index != -1) {
-			Qnode node = Qtable[hit_Q_index];
-			for (int atmpt = 6; atmpt >= 0; atmpt--) {
-				newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
-				int mapped_dir_index = map_direction(newdir);
-				if (node.action[mapped_dir_index] > 0.75 * node.max)
-					break;
+		if ( useRL && next_Q_index_valid) {
+			Qnode node = Qtable[next_Q_index];
+			if (debug) {
+				if(node.max_dir != -1)
+					newdir = standard_dirs[node.max_dir];
+				else
+					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
+			}
+			else {
+				newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);/*
+				for (int atmpt = 4; atmpt >= 0; atmpt--) {
+					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
+					int mapped_dir_index = map_direction(newdir);
+					if (node.action[mapped_dir_index] > 0.2*atmpt * node.max)
+						break;
+				}*/
 			}
 		}
 		else
@@ -318,14 +314,14 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		ray.origin = hitpoint + normal_facing * EPSILON;
 		ray.dir = newdir;
 
+		/* collect reward */
+		reward = length(hitsphere.emission);
+
 		/* accumulate color and specular */
 		accum_color += hitsphere.emission * accum_specular;
 		accum_specular *= hitsphere.specular;
 		accum_specular *= dot(newdir, normal_facing);
 
-		/* if reflection gets too low, stop */
-		if (length(accum_specular) < SPECULAR_THRESHOLD)
-			break;
 	}
 
 	return accum_color;
@@ -336,9 +332,8 @@ union Colour{ float c; uchar4 components; };
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
 	const int sphere_count, __global float3* output,  const int framenumber,__constant const Camera* cam, 
 	__global float3* accumbuffer, __global float3* output2, const int num_sample, const int rand0, const int rand1, const int acu_sample,
-	const int Qtable_size, __global Qnode* Qtable)
+	const int Qtable_size, __global Qnode* Qtable, const int debug)
 {
-
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
@@ -349,7 +344,7 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	float3 finalcolor = (float3)(0.0);
 	Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
 	for (int i = 0; i<num_sample; i++){
-		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable) *1.0f/ num_sample;
+		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) *1.0f/ num_sample;
 	}
 	float3 tempcolor = finalcolor;
 
@@ -376,11 +371,6 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 		tempcolor.y /= max_color;
 		tempcolor.z /= max_color;
 	}
-
-	/*debug
-	float3 tt = (0.0);
-	tt.x = 5.99f; tt.y = 2.99f; tt.z = 5.99f;
-	Qtable[2].max = get_Qtable_index(tt);*/
 
 	union Colour fcolor;
 	fcolor.components = (uchar4)(

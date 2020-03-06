@@ -90,6 +90,7 @@ void initCLKernel() {
 	kernel.setArg(12, acu_sample);
 	kernel.setArg(13, Qtable_size);
 	kernel.setArg(14, Qtable);
+	kernel.setArg(15, 0);
 }
 
 inline float clamp(float x){ return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }
@@ -146,6 +147,19 @@ void runKernel(bool save_img) {
 		strcpy(img_name_char, img_name.c_str());
 		FreeImage_Save(FIF_PNG, img, img_name_char, 0);
 		cout<< "Image saved to " << img_name<<endl;
+
+		// print ql table
+		kernel.setArg(15, 1);
+		queue.enqueueReadBuffer(Qtable, CL_TRUE, 0, Qtable_size * sizeof(Qnode), Qtable_cpu);
+		int count = 0;
+		for (int i = 0; i < Qtable_size; i++) {
+			if (Qtable_cpu[i].max != 0) {
+				std::cout << " === index " << i << ", max " << Qtable_cpu[i].max << ", max dir: " << Qtable_cpu[i].max_dir << " ##\n";
+				count++;
+			}
+			if (count >900)
+				break;
+		}
 	}
 	
 	//Release the VBOs so OpenGL can play with them
@@ -189,6 +203,7 @@ void render() {
 	interactiveCamera->save_img = false;
 
 	runKernel(save_img);
+
 	drawGL();
 
 	if(checkFPS){
@@ -225,6 +240,7 @@ void initCamera()
 void initQtable(Qnode * Qtable) {
 	for (int i = 0; i < Qtable_size; i++) {
 		Qtable[i].max = 0.0f;
+		Qtable[i].max_dir =  -1;
 		for (int j = 0; j < 26; j++) {
 			Qtable[i].action[j] = 0.0f;
 		}
