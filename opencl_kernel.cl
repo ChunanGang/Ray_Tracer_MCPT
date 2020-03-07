@@ -335,6 +335,14 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 	return accum_color;
 }
 
+static float cal_variance(const float * mag_arr, const float avg, const int size) {
+	float acum = 0;
+	for (int i = 0; i < size; i++) {
+		acum += (mag_arr[i] - avg)*(mag_arr[i] - avg);
+	}
+	return acum / size;
+}
+
 union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
@@ -348,16 +356,51 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	
 	unsigned int seed0 = x_coord * framenumber % 1000 + (rand0 * 100);
 	unsigned int seed1 = y_coord * framenumber % 1000 + (rand1 * 100);
+	int extra = 1;
+	if (x_coord < width / 2)
+		extra = 0;
 
 	float3 finalcolor = (float3)(0.0);
-	float3 trace_record[64] = { 0.0 };
+	float3 trace_record[64] = { };
 
 	Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
-	for (int i = 0; i<num_sample; i++){
-		trace_record[i] =  trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) ;
+
+	if (extra) {
+		/*
+		int sss = 10;
+		int index = 0;
+		float3 st[10] = { (float3) (0.0) };
+		for (int i = 0; i < num_sample; i++) {
+			float3 result = trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug);
+			if (length(result) > 0) {
+				st[index] = result;
+				index += 1;
+			}
+			if (index == sss)
+				break;
+		}
+		for (int i = 0; i < sss; i++) {
+			finalcolor += st[i] / sss;
+		}*/
+
+		for (int i = 0; i < num_sample; i++) {
+			finalcolor += trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) / num_sample;
+		}
+		if (length(finalcolor) > 0 && length(finalcolor) < 0.3) {
+			finalcolor *= (float)2.5;
+		}
+		else if (length(finalcolor) > 0.3 && length(finalcolor) < 0.5) {
+			finalcolor *= (float)1.5;
+		}
 	}
-	//for (int )
+	else {
+		for (int i = 0; i <8; i++) {
+			finalcolor += trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug)/8;
+		}
+	}
+		
 	float3 tempcolor = finalcolor;
+
 
 	/* skip update when framenumber more than 1 and does not need to acumulate sample*/
 	if(framenumber>1 && acu_sample ==0)

@@ -33,9 +33,9 @@ void initScene(Sphere* cpu_spheres) {
 	// spheres
 	cpu_spheres[1].radius = 0.16f;
 	cpu_spheres[1].position = Vector3Df(-1.0f, 0.16f, 1.0f);
-	cpu_spheres[1].specular = Vector3Df(0.6f, 0.7f, 0.9f);
-	cpu_spheres[1].emission = Vector3Df(0.0f, 0.0f, 0.0f);
-	cpu_spheres[1].shininess = 8;
+	cpu_spheres[1].specular = Vector3Df(0.0f, 0.0f, 0.0f);
+	cpu_spheres[1].emission = Vector3Df(4.0f, 2.0f, 2.0f);
+	cpu_spheres[1].shininess = 0;
 	/*
 	cpu_spheres[2].radius = 0.16f;
 	cpu_spheres[2].position = Vector3Df(0.25f, 0.16f, 0.1f);
@@ -47,7 +47,7 @@ void initScene(Sphere* cpu_spheres) {
 	cpu_spheres[2].position = Vector3Df(-.4f, 0.2f, .4f);
 	cpu_spheres[2].specular = Vector3Df(0.9f, 0.9f, 0.9f);
 	cpu_spheres[2].emission = Vector3Df(.0f, .0f, .0f);
-	cpu_spheres[2].shininess = 1;
+	cpu_spheres[2].shininess = 0;
 
 	cpu_spheres[4].radius = 0.3f;
 	cpu_spheres[4].position = Vector3Df(-1.2f, 0.28f, 0.2f);
@@ -57,7 +57,7 @@ void initScene(Sphere* cpu_spheres) {
 
 	// lightsource
 	cpu_spheres[3].radius = 1.0f;
-	cpu_spheres[3].position = Vector3Df(.7f, 1.4f, -.7f);
+	cpu_spheres[3].position = Vector3Df(.7f, 1.6f, -.7f);
 	cpu_spheres[3].specular = Vector3Df(0.0f, 0.0f, 0.0f);
 	cpu_spheres[3].emission = Vector3Df(4.9f, 4.9f, 4.f);
 	cpu_spheres[3].shininess = 0;
