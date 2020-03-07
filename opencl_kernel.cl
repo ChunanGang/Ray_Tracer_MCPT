@@ -7,7 +7,7 @@ __constant float SPECULAR_THRESHOLD = 0.05; /* stop recursive when specular too 
 __constant float3 background_color = (float3)(0.0);
 
 /* RL part */
-__constant int useRL = 1;
+__constant int useRL = 0;
 /* standard directions that get mapped into */
 __constant float3 standard_dirs[] = {
 	(float3)(0.5774f, 0.5774f, 0.5774f),
@@ -197,7 +197,7 @@ static float3 generate_rand_dir(int * seed0, int * seed1, float3 normal_facing, 
 	float3 u = normalize(cross(axis, w));
 	float3 v = cross(w, u);
 
-	return normalize(u * cos(rand1)*rand2s + v * sin(rand1)*rand2s + w * sqrt(1.0f - rand2));
+	return normalize(u * cos(rand1)*rand2s + v * sin(rand1)*rand2s + w * sqrt(1.0f - rand2) + reflect_dir *shininess*rand2s);
 }
 
 static int get_Qtable_index(const float3 position) {
@@ -350,10 +350,13 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	unsigned int seed1 = y_coord * framenumber % 1000 + (rand1 * 100);
 
 	float3 finalcolor = (float3)(0.0);
+	float3 trace_record[64] = { 0.0 };
+
 	Ray camray = createCamRay(x_coord , y_coord , width, height, cam);
 	for (int i = 0; i<num_sample; i++){
-		finalcolor +=  trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) *1.0f/ num_sample;
+		trace_record[i] =  trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) ;
 	}
+	//for (int )
 	float3 tempcolor = finalcolor;
 
 	/* skip update when framenumber more than 1 and does not need to acumulate sample*/
