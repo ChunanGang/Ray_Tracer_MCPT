@@ -1,6 +1,6 @@
 
 
-__constant float EPSILON = 0.0003f; /* req2uired to compensate for limited float precision */
+__constant float EPSILON = 0.00003f; /* req2uired to compensate for limited float precision */
 __constant int RECURSE_DEPTH = 4;
 __constant float PI = 3.14159265359f;
 __constant float SPECULAR_THRESHOLD = 0.05; /* stop recursive when specular too low */
@@ -9,7 +9,8 @@ __constant float3 background_color = (float3)(0.0);
 /* RL part */
 __constant int useRL = 1;
 /* standard directions that get mapped into */
-__constant float3 standard_dirs[] = { (float3)(0.5774f, 0.5774f, 0.5774f),
+__constant float3 standard_dirs[] = {
+	(float3)(0.5774f, 0.5774f, 0.5774f),
 	(float3)(-0.5774f, -0.5774f, -0.5774f) ,
 	(float3)(0.5774f, -0.5774f, -0.5774f),
 	(float3)(-0.5774f, 0.5774f, -0.5774f),
@@ -46,10 +47,10 @@ __constant float x_min = -6.0f;
 __constant float x_max = 6.0f;
 __constant float z_min = -6.0f;
 __constant float z_max = 6.0f;
-__constant float section = 0.1;
-__constant int y_size = 32;
-__constant int x_size =120;
-__constant int z_size = 120;
+__constant float section = 0.05;
+__constant int y_size = 64;
+__constant int x_size =240;
+__constant int z_size = 240;
 /* q learning para */
 __constant float LR = 0.0004;
 __constant float GAMMA = 0.8;
@@ -187,13 +188,16 @@ static float get_random(unsigned int *seed0, unsigned int *seed1) {
 /* use the coordinte frame and random numbers to compute the next ray direction */
 static float3 generate_rand_dir(int * seed0, int * seed1, float3 normal_facing, float3 reflect_dir, float shininess) {
 
-	float alpha = 2.0 * PI * get_random(seed0, seed1);
-	float z = get_random(seed0, seed1);
-	float sineTheta = sqrt(1 - z);
+	float rand1 = get_random(seed0, seed1) * 2.0f * PI;
+	float rand2 = get_random(seed0, seed1);
+	float rand2s = sqrt(rand2);
+
 	float3 w = normal_facing;
-	float3 u = normalize(cross((fabs(w.x) > .1f ? (float3)(0.0f, 1.0f, 0.0f) : (float3)(1.0f, 0.0f, 0.0f)), w));
+	float3 axis = fabs(w.x) > 0.1f ? (float3)(0.0f, 1.0f, 0.0f) : (float3)(1.0f, 0.0f, 0.0f);
+	float3 u = normalize(cross(axis, w));
 	float3 v = cross(w, u);
-	return normalize(u * cos(alpha) * sineTheta + v * sin(alpha) * sineTheta + w * sqrt(z));
+
+	return normalize(u * cos(rand1)*rand2s + v * sin(rand1)*rand2s + w * sqrt(1.0f - rand2));
 }
 
 static int get_Qtable_index(const float3 position) {
@@ -205,16 +209,18 @@ static int get_Qtable_index(const float3 position) {
 
 /* map the input direction into one of the stantard directions */
 static int map_direction(const float3 dir) {
-	float min = 1000.0;
+	
+	float min_val = 1000.0;
 	int min_index = -1;
 	for (int i = 0; i < 26; i++) {
 		float dist = length(dir - standard_dirs[i]);
-		if (dist < min) {
-			min = dist;
+		if (dist < min_val) {
+			min_val = dist;
 			min_index = i;
 		}
 	}
 	return min_index;
+
 }
 
 static int check_pos_valid(const float3 pos) {
@@ -292,19 +298,21 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		if ( useRL && next_Q_index_valid) {
 			Qnode node = Qtable[next_Q_index];
 			if (debug) {
-				if(node.max_dir != -1)
-					newdir = standard_dirs[node.max_dir];
+				if (node.max_dir != -1){
+					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
+					newdir = normalize(newdir + standard_dirs[node.max_dir] * (float)0.6);
+				}
 				else
 					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
 			}
 			else {
-				newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);/*
+				/*newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);*/
 				for (int atmpt = 4; atmpt >= 0; atmpt--) {
 					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
 					int mapped_dir_index = map_direction(newdir);
 					if (node.action[mapped_dir_index] > 0.2*atmpt * node.max)
 						break;
-				}*/
+				}
 			}
 		}
 		else

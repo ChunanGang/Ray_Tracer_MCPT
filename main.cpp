@@ -152,9 +152,9 @@ void runKernel(bool save_img) {
 		kernel.setArg(15, 1);
 		queue.enqueueReadBuffer(Qtable, CL_TRUE, 0, Qtable_size * sizeof(Qnode), Qtable_cpu);
 		int count = 0;
-		for (int i = 0; i < Qtable_size; i++) {
+		for (int i = 200000; i < Qtable_size; i++) {
 			if (Qtable_cpu[i].max != 0) {
-				std::cout << " === index " << i << ", max " << Qtable_cpu[i].max << ", max dir: " << Qtable_cpu[i].max_dir << " ##\n";
+				//std::cout << " === index " << i << ", max " << Qtable_cpu[i].max << ", max dir: " << Qtable_cpu[i].max_dir << " ##\n";
 				count++;
 			}
 			if (count >900)
