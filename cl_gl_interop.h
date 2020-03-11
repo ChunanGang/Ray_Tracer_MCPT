@@ -24,7 +24,7 @@ void initGL(int argc, char** argv){
 	// specify the initial window position
 	glutInitWindowPosition(0, 0);
 	// specify the initial window size
-	glutInitWindowSize(window_width/2,window_height/2);
+	glutInitWindowSize(window_width,window_height);
 	// create the window and set title
 	glutCreateWindow("OpenCL Ray Tracer");
 
