@@ -387,10 +387,10 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 			finalcolor += trace(spheres, &camray, sphere_count, &seed0, &seed1, Qtable, debug) / num_sample;
 		}
 		if (length(finalcolor) > 0 && length(finalcolor) < 0.3) {
-			finalcolor *= (float)2.5;
+			finalcolor *= (float)3;
 		}
 		else if (length(finalcolor) > 0.3 && length(finalcolor) < 0.5) {
-			finalcolor *= (float)1.5;
+			finalcolor *= (float)2;
 		}
 	}
 	else {
