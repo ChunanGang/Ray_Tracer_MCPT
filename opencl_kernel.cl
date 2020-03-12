@@ -281,6 +281,11 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		int next_Q_index_valid = check_pos_valid(hitpoint);
 		int next_Q_index = get_Qtable_index(hitpoint);
 
+		/* show the segment */
+		/*
+		if(next_Q_index_valid)
+			return (float3)(next_Q_index%100*0.01 , next_Q_index%20*0.05, next_Q_index%4*0.2 );*/
+
 		/* update Q table if the current point is valid */
 		if (useRL && !debug && cur_Q_index_valid && i!=0) {
 			if (next_Q_index_valid)
@@ -299,8 +304,12 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 			Qnode node = Qtable[next_Q_index];
 			if (debug) {
 				if (node.max_dir != -1){
-					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
-					newdir = normalize(newdir + standard_dirs[node.max_dir] * (float)0.6);
+					for (int atmpt = 4; atmpt >= 0; atmpt--) {
+						newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
+						int mapped_dir_index = map_direction(newdir);
+						if (node.action[mapped_dir_index] > 0.75 * node.max)
+							break;
+					}
 				}
 				else
 					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
@@ -310,7 +319,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 				for (int atmpt = 4; atmpt >= 0; atmpt--) {
 					newdir = generate_rand_dir(seed0, seed1, normal_facing, reflect_dir, hitsphere.shininess);
 					int mapped_dir_index = map_direction(newdir);
-					if (node.action[mapped_dir_index] > 0.2*atmpt * node.max)
+					if (node.action[mapped_dir_index] > 0.2 * atmpt * node.max)
 						break;
 				}
 			}
